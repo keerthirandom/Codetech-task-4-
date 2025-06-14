@@ -1,0 +1,75 @@
+module fir_filter #(
+    parameter N = 4,
+    parameter WIDTH = 16
+)(
+    input clk,
+    input rst,
+    input signed [WIDTH-1:0] x_in,
+    output reg signed [WIDTH-1:0] y_out
+);
+
+    // Example coefficients (change as needed)
+    parameter signed [WIDTH-1:0] h [0:N-1] = '{16'd2, 16'd4, 16'd4, 16'd2};
+
+    reg signed [WIDTH-1:0] shift_reg [0:N-1];
+    integer i;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            for (i=0; i<N; i=i+1)
+                shift_reg[i] <= 0;
+            y_out <= 0;
+        end else begin
+            // Shift input samples
+            for (i=N-1; i>0; i=i-1)
+                shift_reg[i] <= shift_reg[i-1];
+            shift_reg[0] <= x_in;
+
+            // FIR calculation
+            integer j;
+            reg signed [2*WIDTH-1:0] acc;
+            acc = 0;
+            for (j=0; j<N; j=j+1)
+                acc = acc + shift_reg[j] * h[j];
+            y_out <= acc[WIDTH-1:0];
+        end
+    end
+
+endmodule
+`timescale 1ns/1ps
+module fir_filter_tb();
+
+    reg clk, rst;
+    reg signed [15:0] x_in;
+    wire signed [15:0] y_out;
+
+    fir_filter uut (
+        .clk(clk),
+        .rst(rst),
+        .x_in(x_in),
+        .y_out(y_out)
+    );
+
+    initial begin
+        clk = 0;
+        forever #5 clk = ~clk; // 100MHz clock
+    end
+
+    initial begin
+        rst = 1; x_in = 0;
+        #10;
+        rst = 0;
+        // Input impulse
+        x_in = 16'd1000; #10;
+        x_in = 16'd0;    #10;
+        x_in = 16'd0;    #10;
+        x_in = 16'd0;    #10;
+        x_in = 16'd0;    #10;
+        $finish;
+    end
+
+    initial begin
+        $monitor("At time %t, x_in = %d, y_out = %d", $time, x_in, y_out);
+    end
+
+endmodule
